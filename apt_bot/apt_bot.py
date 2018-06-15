@@ -1,3 +1,4 @@
+import re
 import requests
 import argparse as arg
 from bs4 import BeautifulSoup
@@ -81,8 +82,8 @@ def get_paginated_urls(soup, urls):
     div_class = "paging"
 
     try:
-        if soup.find("div", class_=div_class):
-            url = soup.find("a", class_="next").get('href')
+        if soup.find('div', class_=div_class):
+            url = soup.find('a', class_='next').get('href')
             new_soup = get_soup(url)
             urls.append(url)
             return get_paginated_urls(new_soup, urls)
@@ -91,7 +92,7 @@ def get_paginated_urls(soup, urls):
     except ValueError:
         return urls
 
-def get_apartments(soup):
+def get_div_apartments(soup):
     """
     Takes soup and finds all divs with class propertyInfo that are listed in the
     paginated placards section.
@@ -105,23 +106,55 @@ def get_apartments(soup):
     url_list = []
     div_class = "propertyInfo"
 
+    div_apartments_list = [soup.find_all("div", class_=div_class)]
+    
     if get_paginated_urls(soup, url_list):
-        div_apartments_list = []
         for url in url_list:
             new_soup = get_soup(url)
             div_apartments_list.append(
                 new_soup.find_all("div", class_=div_class)
             )
-        return div_apartments_list
-    else:
-        div_apartments = soup.find_all("div", class_=div_class)
-        return div_apartments
+    
+    return div_apartments_list
+
+def get_apartment_urls(div_apartments_list):
+    """
+    Takes ResultSet(s) in div_apartments_list and obtains the urls for each of the apartment divs in the ResultSet(s).
+
+    Arguments:
+        div_apartments_list: List of ResultSet(s) containing the apartment
+            listings that resulted from the apartments.com search.  
+    """
+    apartment_urls = []
+    a_class_regex = "placardTitle js-placardTitle"
+
+    for result in div_apartments_list:
+        for div in result:
+            try:
+                apartment_urls.append(
+                    div.find('a', class_=re.compile(a_class_regex)).get('href')
+                )
+            except AttributeError:
+                pass
+
+    return apartment_urls
+
+
+def scrape_apartments(url):
+    soup = get_soup(url)
+    apartments = get_div_apartments(soup)
+    apartment_urls = get_apartment_urls(apartments)
+    print(apartment_urls)
+    print(len(apartment_urls))
+
 
 def main():
     parser = arg.ArgumentParser(
                 description='Apartment hunter, curates a list of apartment ' \
                             'listings from Apartments.com'
             )
+    parser.add_argument('-v', '--verbose', action='store_true', default=False,
+        help='Enables debugging output and extra verbosity')
     parser.add_argument('--city', type=str, nargs=1, default='los angeles')
     parser.add_argument('--state', type=str, nargs=1, default='ca')
     parser.add_argument('--zip_code', type=str, nargs=1, default='90034')
@@ -130,7 +163,7 @@ def main():
     parser.add_argument('--min_price', type=str, nargs=1, default=None)
     parser.add_argument('--max_price', type=str, nargs=1, default='2500')
     args = parser.parse_args()
-
+    
     url = get_search_url(
             args.city,
             args.state,
@@ -141,9 +174,12 @@ def main():
             args.max_price
         )
 
-    soup = get_soup(url)
-    apartments = get_apartments(soup)
-    print(len(apartments))
+    if args.verbose:
+        for key, item in vars(args).items():
+            print('===== {0}: {1} ====='.format(key, item))
+        print(url)   
+
+    scrape_apartments(url)
 
 if __name__ == "__main__":
     main()
