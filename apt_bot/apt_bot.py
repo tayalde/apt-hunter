@@ -1,11 +1,12 @@
 import re
+import csv
 import requests
 import argparse as arg
 from bs4 import BeautifulSoup
 
 def get_search_url(city, state, zip_code, beds, baths, min_price, max_price):
     """
-    Combines arguments with aparments.com domain to obtain the search url
+    Combines arguments with apartments.com domain to obtain the search url
     for apartment listings with the specified parameters.
 
     Arguments:
@@ -78,6 +79,7 @@ def get_paginated_urls(soup, urls):
 
     Arguments:
         soup: BeautifulSoup object generated from get_soup()
+        urls: list of urls to be populated by function
     """
     div_class = "paging"
 
@@ -140,6 +142,29 @@ def get_apartment_urls(div_apartments_list):
 
     return apartment_urls
 
+def get_availability(url):
+    """
+    Function to handle scraping the availability section information
+    from an apartment listing url.
+
+    Arguments:
+        url: apartment listing url gathered from get_apartment_urls
+    """
+    units = []
+    section_class_available = "availabilitySection"
+    tr_class_row = "rentalGridRow"
+
+    # get units table from apartment url
+    soup = get_soup(url)
+    availability = soup.find('section', class_=section_class_available)
+
+    # iterate through units table, collecting each unit's data
+    for row in availability.find_all('tr', class_=tr_class_row):
+        unit_dict = {
+            col.get('class')[0]: col.get_text().strip() for col in row.find_all('td')
+        }
+        units.append(unit_dict)
+    return units
 
 def scrape_apartments(apartment_urls):
     """
@@ -151,23 +176,10 @@ def scrape_apartments(apartment_urls):
         apartment_urls: list of apartment listing urls gathered from 
             get_apartment_urls()
     """
-    units = []
-    section_class_available = "availabilitySection"
+    
     section_class_description = "descriptionSection"
     section_class_amenities = "amenitiesSection"
     section_class_contact = "contactSection"
-
-    for apartment in apartment_urls:
-        new_soup = get_soup(apartment)
-        availabilty = new_soup.find('section', class_=section_class_available)
-        description = new_soup.find('section',
-                                    class_=section_class_description)
-        amenities = new_soup.find('section', class_=section_class_amenities)
-        contact = new_soup.find('section', class_=section_class_contact)
-
-        # Collect data from the availability table
-        for tr in availability.find_all('tr'):
-            
 
 
 
@@ -206,11 +218,12 @@ def main():
     soup = get_soup(url)
     apartments = get_div_apartments(soup)
     apartment_urls = get_apartment_urls(apartments)
+    units = get_availability('https://www.apartments.com/the-woodmere-los-angeles-ca/s98phx5/')
+    for unit in units:
+        print(unit, '\n' * 2)
+    print(len(units))
+
 
 if __name__ == "__main__":
     main()
     
-    
-
-
-
