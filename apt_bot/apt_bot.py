@@ -119,7 +119,8 @@ def get_div_apartments(soup):
 
 def get_apartment_urls(div_apartments_list):
     """
-    Takes ResultSet(s) in div_apartments_list and obtains the urls for each of the apartment divs in the ResultSet(s).
+    Takes ResultSet(s) in div_apartments_list and obtains the urls for each of the
+    apartment divs in the ResultSet(s).
 
     Arguments:
         div_apartments_list: List of ResultSet(s) containing the apartment
@@ -140,12 +141,35 @@ def get_apartment_urls(div_apartments_list):
     return apartment_urls
 
 
-def scrape_apartments(url):
-    soup = get_soup(url)
-    apartments = get_div_apartments(soup)
-    apartment_urls = get_apartment_urls(apartments)
-    print(apartment_urls)
-    print(len(apartment_urls))
+def scrape_apartments(apartment_urls):
+    """
+    Takes apartment urls gathered from main search page soup, gets soup
+    for each of those pages and scrapes the table data with listing
+    information.
+
+    Arguments:
+        apartment_urls: list of apartment listing urls gathered from 
+            get_apartment_urls()
+    """
+    units = []
+    section_class_available = "availabilitySection"
+    section_class_description = "descriptionSection"
+    section_class_amenities = "amenitiesSection"
+    section_class_contact = "contactSection"
+
+    for apartment in apartment_urls:
+        new_soup = get_soup(apartment)
+        availabilty = new_soup.find('section', class_=section_class_available)
+        description = new_soup.find('section',
+                                    class_=section_class_description)
+        amenities = new_soup.find('section', class_=section_class_amenities)
+        contact = new_soup.find('section', class_=section_class_contact)
+
+        # Collect data from the availability table
+        for tr in availability.find_all('tr'):
+            
+
+
 
 
 def main():
@@ -179,7 +203,9 @@ def main():
             print('===== {0}: {1} ====='.format(key, item))
         print(url)   
 
-    scrape_apartments(url)
+    soup = get_soup(url)
+    apartments = get_div_apartments(soup)
+    apartment_urls = get_apartment_urls(apartments)
 
 if __name__ == "__main__":
     main()
