@@ -116,7 +116,7 @@ def get_div_apartments(soup):
             div_apartments_list.append(
                 new_soup.find_all("div", class_=div_class)
             )
-    
+
     return div_apartments_list
 
 def get_apartment_urls(div_apartments_list):
@@ -132,7 +132,7 @@ def get_apartment_urls(div_apartments_list):
     a_class_regex = "placardTitle js-placardTitle"
 
     for result in div_apartments_list:
-        for div in result:
+        for div in result: 
             try:
                 apartment_urls.append(
                     div.find('a', class_=re.compile(a_class_regex)).get('href')
@@ -142,31 +142,80 @@ def get_apartment_urls(div_apartments_list):
 
     return apartment_urls
 
-def get_availability(url):
+def get_address(apartment_url):
+    """
+    Takes apartment url and scrapes the address off the page.
+
+    Arguments:
+        apartment_url: apartment listing url gathered from get_apartment_urls
+    """
+    soup = get_soup(apartment_url)
+    address = soup.find(
+        'div', class_='propertyAddress').get_text(' ', strip=True)
+    return address
+
+def get_availability(apartment_url, address):
     """
     Function to handle scraping the availability section information
     from an apartment listing url.
 
     Arguments:
-        url: apartment listing url gathered from get_apartment_urls
+        apartment_url: apartment listing url gathered from get_apartment_urls
     """
     units = []
     section_class_available = "availabilitySection"
     tr_class_row = "rentalGridRow"
 
     # get units table from apartment url
-    soup = get_soup(url)
+    soup = get_soup(apartment_url)
     availability = soup.find('section', class_=section_class_available)
 
     # iterate through units table, collecting each unit's data
     for row in availability.find_all('tr', class_=tr_class_row):
         unit_dict = {
-            col.get('class')[0]: col.get_text().strip() for col in row.find_all('td')
+            col.get('class')[0]: col.get_text(' ', strip=True)
+            for col in row.find_all('td')
         }
+        unit_dict.update({'address': address, 'url': apartment_url})
         units.append(unit_dict)
     return units
 
-def scrape_apartments(apartment_urls):
+def process_availability(units):
+    """
+    Processes the list of unit dictionaries from a given apartment listing, namely
+    fixing the baths and beds values making them more readable.
+
+    Arguments:
+        units: list of dictionaries containing the information for each unit available
+            at an apartment
+    """
+    for unit in units:
+        unit['beds'] = unit['beds'][:1]
+        unit['baths'] = unit['baths'][:1]
+
+    return units
+
+def write_availability_csv(units):
+    """
+    Writes csv using csv.writer of the units available for an apartment.
+
+    Arguments:
+        units: list of dictionaries containing the processed information for each unit
+            available at an apartment
+    """
+    unit_dict_keys = [
+        'beds', 'baths', 'sqft', 'rent', 'leaseLength',
+        'address', 'url'
+    ]
+
+    with open('apartments.csv', 'w', newline='\n') as csvfile:
+        unit_writer = csv.DictWriter(csvfile, unit_dict_keys, extrasaction='ignore')
+        unit_writer.writeheader()
+        unit_writer.writerows(units)
+
+    return 
+
+def scrape_apartments(search_url):
     """
     Takes apartment urls gathered from main search page soup, gets soup
     for each of those pages and scrapes the table data with listing
@@ -176,12 +225,21 @@ def scrape_apartments(apartment_urls):
         apartment_urls: list of apartment listing urls gathered from 
             get_apartment_urls()
     """
-    
-    section_class_description = "descriptionSection"
-    section_class_amenities = "amenitiesSection"
-    section_class_contact = "contactSection"
+    all_units = []
 
+    soup = get_soup(search_url)
+    apartment_divs = get_div_apartments(soup)    
+    apartment_urls = get_apartment_urls(apartment_divs)
+    for apartment_url in apartment_urls:
+        address = get_address(apartment_url)
+        print(address)
+        units = get_availability(apartment_url, address)
+        units_clean = process_availability(units)
+        all_units += units_clean
 
+    write_availability_csv(all_units)
+    return all_units
+        
 
 
 def main():
@@ -213,15 +271,9 @@ def main():
     if args.verbose:
         for key, item in vars(args).items():
             print('===== {0}: {1} ====='.format(key, item))
-        print(url)   
+        print(url)
 
-    soup = get_soup(url)
-    apartments = get_div_apartments(soup)
-    apartment_urls = get_apartment_urls(apartments)
-    units = get_availability('https://www.apartments.com/the-woodmere-los-angeles-ca/s98phx5/')
-    for unit in units:
-        print(unit, '\n' * 2)
-    print(len(units))
+    scrape_apartments(url) 
 
 
 if __name__ == "__main__":
